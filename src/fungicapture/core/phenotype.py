@@ -231,7 +231,10 @@ def score_media(
 
     keep_id = [
         c
-        for c in ("sample_id", "accession", "media", "plate_index", "filename")
+        for c in (
+            "base_key", "plate_id", "sample_id", "accession", "media",
+            "plate_index", "filename",
+        )
         if c in frame.columns
     ]
     table = frame[keep_id].copy() if keep_id else pd.DataFrame(index=frame.index)

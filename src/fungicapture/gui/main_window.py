@@ -343,18 +343,17 @@ class MainWindow(QMainWindow):
             for index, (crop_path, mask_path) in enumerate(pairs, start=1):
                 if not progress(index, len(pairs), f"Preparing {crop_path.name}"):
                     break
-                values = feature_lookup.get(
-                    colony_key(project, crop_path, crops_root), {}
-                )
+                key = colony_key(project, crop_path, crops_root)
+                values = feature_lookup.get(key, {})
                 try:
                     panels.append(
                         build_panel_data(
-                            crop_path, mask_path, values, project.params
+                            crop_path, mask_path, values, project.params, key=key
                         )
                     )
                 except Exception:
                     continue
-            context = build_context(project, mode, len(panels), store)
+            context = build_context(project, mode, [p.key for p in panels], store)
             written = write_report(
                 path, panels, project.params, context, mode=mode, verdicts=store
             )

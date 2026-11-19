@@ -238,11 +238,12 @@ class ValidateTab(QWidget):
             item.setToolTip(f"status: {status}")
             self.colony_list.addItem(item)
 
-        counts = self.verdicts.status_counts()
-        reviewed = counts.get("pass", 0) + counts.get("fail", 0)
+        counts = self.verdicts.status_counts(
+            self._colony_key(crop) for crop, _ in self._pairs
+        )
         self.counts.setText(
             f"{len(self._pairs)} colonies   ✓ {counts.get('pass', 0)}   "
-            f"✗ {counts.get('fail', 0)}   unreviewed {len(self._pairs) - reviewed}"
+            f"✗ {counts.get('fail', 0)}   unreviewed {counts.get('unreviewed', 0)}"
         )
         if self.colony_list.count():
             self.colony_list.setCurrentRow(0)
@@ -313,7 +314,7 @@ class ValidateTab(QWidget):
 
         try:
             data = build_panel_data(
-                crop_path, mask_path, values, self.project.params
+                crop_path, mask_path, values, self.project.params, key=key
             )
             figure = make_panel(data, self.project.params, figsize=(15, 8.5))
             # The key can contain a plate sub-folder ("plate/colony"); flatten it
@@ -349,11 +350,12 @@ class ValidateTab(QWidget):
         item.setToolTip(f"status: {status}")
         item.setForeground(QColor(colour))
 
-        counts = self.verdicts.status_counts()
-        reviewed = counts.get("pass", 0) + counts.get("fail", 0)
+        counts = self.verdicts.status_counts(
+            self._colony_key(crop) for crop, _ in self._pairs
+        )
         self.counts.setText(
             f"{len(self._pairs)} colonies   ✓ {counts.get('pass', 0)}   "
-            f"✗ {counts.get('fail', 0)}   unreviewed {len(self._pairs) - reviewed}"
+            f"✗ {counts.get('fail', 0)}   unreviewed {counts.get('unreviewed', 0)}"
         )
         self._step(1)
 

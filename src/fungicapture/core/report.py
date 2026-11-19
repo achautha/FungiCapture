@@ -26,6 +26,7 @@ import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from textwrap import fill
 from typing import Any
 
 import numpy as np
@@ -205,7 +206,7 @@ def _contact_sheet(
 
             status = verdicts.get(data.key).status if verdicts else "unreviewed"
             colour = {"pass": "#228833", "fail": "#cc3311"}.get(status, "#999999")
-            axis.set_title(data.key[:22], fontsize=6.5, color=colour)
+            axis.set_title(fill(data.key, width=22), fontsize=6.5, color=colour)
             for spine in axis.spines.values():
                 spine.set_visible(True)
                 spine.set_color(colour)
@@ -230,16 +231,19 @@ def _contact_sheet(
 def build_context(
     project,
     mode: str,
-    n_colonies: int,
+    colony_keys: Sequence[str],
     verdicts: VerdictStore | None = None,
     extra_notes: Sequence[str] = (),
 ) -> ReportContext:
-    """Assemble the header block from a project."""
+    """Assemble counts for the report's complete, unfiltered colony set."""
     return ReportContext(
         project_name=project.name,
         provenance=project.provenance(),
         mode=mode,
-        n_colonies=n_colonies,
-        verdict_counts=verdicts.status_counts() if verdicts else {},
+        n_colonies=len(colony_keys),
+        verdict_counts=(
+            verdicts.status_counts(colony_keys) if verdicts
+            else {"pass": 0, "fail": 0, "unreviewed": len(colony_keys)}
+        ),
         extra_notes=list(extra_notes),
     )

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -99,9 +100,14 @@ class VerdictStore:
     def get(self, key: str) -> Verdict:
         return self.verdicts.get(key, Verdict(key=key))
 
-    def status_counts(self) -> dict[str, int]:
+    def status_counts(self, keys: Iterable[str] | None = None) -> dict[str, int]:
+        """Count the requested colonies, including those never reviewed.
+
+        Without keys, count only the explicitly stored verdicts.
+        """
         counts = {"pass": 0, "fail": 0, "unreviewed": 0}
-        for verdict in self.verdicts.values():
+        for key in self.verdicts if keys is None else keys:
+            verdict = self.get(key)
             counts[verdict.status] = counts.get(verdict.status, 0) + 1
         return counts
 
@@ -134,8 +140,10 @@ def build_panel_data(
     values: dict[str, Any],
     params: AnalysisParams,
     calibrator=None,
+    *,
+    key: str | None = None,
 ) -> PanelData:
-    """Load and prepare everything for one colony's QC panel."""
+    """Prepare a QC panel, using the caller's project-wide colony key if given."""
     from .features.extract import normalise_stem
     from .features.regions import build_regions, load_gray, load_mask, load_rgb
 
@@ -153,7 +161,7 @@ def build_panel_data(
     regions = build_regions(mask, params.ring)
 
     return PanelData(
-        key=normalise_stem(image_path.stem),
+        key=key if key is not None else normalise_stem(image_path.stem),
         rgb=rgb,
         gray=gray,
         mask=regions.inside,

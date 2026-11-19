@@ -12,6 +12,8 @@ lookup, and the fail-exclusion.
 
 from __future__ import annotations
 
+from argparse import Namespace
+
 import numpy as np
 import pytest
 
@@ -20,7 +22,9 @@ pytest.importorskip("skimage")
 pytest.importorskip("sklearn")
 import cv2  # noqa: E402
 import pandas as pd  # noqa: E402
+from pypdf import PdfReader  # noqa: E402
 
+from fungicapture.cli.main import command_report  # noqa: E402
 from fungicapture.core import pipeline  # noqa: E402
 from fungicapture.core.pipeline import colony_key, pair_crops_and_masks  # noqa: E402
 from fungicapture.core.plate import BoxGeometry  # noqa: E402
@@ -72,6 +76,17 @@ def test_colony_key_matches_feature_table_in_a_batch(tmp_path):
         key = colony_key(project, crop_path, project.crops_dir)
         assert key in base_keys  # the Validate panel lookup will now hit
 
+    # Each crop keeps its own export, even when another plate has the same
+    # filename. Check the values as well as the file count.
+    per_image = project.vectors_dir / "per_image_vectors"
+    assert len(list(per_image.rglob("*_features.csv"))) == len(pairs)
+    for crop_path, _ in pairs:
+        relative = crop_path.relative_to(project.crops_dir)
+        path = per_image / relative.with_name(f"{crop_path.stem}_features.csv")
+        exported = pd.read_csv(path)
+        expected = frame[frame["base_key"] == colony_key(project, crop_path)]
+        pd.testing.assert_frame_equal(exported, expected.reset_index(drop=True))
+
 
 def test_failed_verdict_is_excluded_from_scoring(tmp_path):
     project = _make_project(tmp_path)
@@ -86,3 +101,47 @@ def test_failed_verdict_is_excluded_from_scoring(tmp_path):
     # The exclusion only happens when the verdict key matches base_key, which is
     # exactly what the fix makes true.
     assert any("excluded because they were marked" in w for w in result.warnings)
+
+    features = pd.read_csv(project.vectors_dir / "all_colony_features.csv")
+    expected = features.loc[features["base_key"] != victim]
+    for name in ("phenotypes_SDA.tsv", "phenotypes_all_media.tsv"):
+        scores = pd.read_csv(project.phenotypes_dir / name, sep="\t")
+        assert scores["base_key"].is_unique
+        columns = ["base_key", "plate_id", "sample_id", "filename"]
+        pd.testing.assert_frame_equal(
+            scores[columns].sort_values("base_key").reset_index(drop=True),
+            expected[columns].sort_values("base_key").reset_index(drop=True),
+        )
+
+
+@pytest.mark.parametrize("mode", ["failures", "contact_sheet"])
+def test_batch_report_matches_verdicts_and_counts_all_colonies(tmp_path, mode):
+    project = _make_project(tmp_path)
+    pairs = pair_crops_and_masks(project)
+    # Fail the second plate's copy of a shared filename, not both copies.
+    failed = colony_key(project, pairs[-1][0])
+    store = VerdictStore(project.qc_dir / VerdictStore.FILENAME)
+    store.set(failed, "fail", "Check this colony")
+    store.set(colony_key(project, pairs[0][0]), "pass")
+    store.set(colony_key(project, pairs[1][0]), "unreviewed")
+    # An old verdict for an absent colony must not affect current counts.
+    store.set("removed_plate/old_colony", "fail")
+    store.save()
+
+    path = tmp_path / f"{mode}.pdf"
+    assert command_report(Namespace(
+        project=project.root, mode=mode, output=path, quiet=True,
+    )) == 0
+    pdf = PdfReader(path)
+    assert len(pdf.pages) == 2
+    summary = " ".join(pdf.pages[0].extract_text().split())
+    assert "colonies: 8 pass: 1 fail: 1 unreviewed: 6" in summary
+    if mode == "failures":
+        page = pdf.pages[1].extract_text()
+        assert failed in page
+        assert "[FAIL] Check this colony" in page
+    else:
+        # Every identity remains readable, including the distinguishing suffix.
+        text = "".join(pdf.pages[1].extract_text().split())
+        for crop_path, _ in pairs:
+            assert colony_key(project, crop_path) in text

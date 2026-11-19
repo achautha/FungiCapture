@@ -852,13 +852,13 @@ def extract_features(
         rows.append(row)
         result.n_outputs += 1
         if write_per_image:
-            # Written here on the main thread, in order, so that if two plates
-            # share a crop name the later one wins - exactly as before - with no
-            # chance of two threads writing the same file at once.
-            pd.DataFrame([row]).to_csv(
-                per_image_root / f"{crop_path.stem}_features.csv",
-                index=False,
+            # Preserve plate folders so identically named wells stay separate.
+            relative = crop_path.relative_to(crops_root)
+            path = per_image_root / relative.with_name(
+                f"{crop_path.stem}_features.csv"
             )
+            path.parent.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame([row]).to_csv(path, index=False)
 
     result.data["elapsed_s"] = round(time.perf_counter() - started_perf, 2)
 

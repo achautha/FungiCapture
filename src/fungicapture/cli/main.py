@@ -117,7 +117,7 @@ def command_run(args) -> int:
 
 
 def command_report(args) -> int:
-    from ..core.pipeline import pair_crops_and_masks
+    from ..core.pipeline import colony_key, pair_crops_and_masks
     from ..core.project import Project
     from ..core.report import build_context, write_report
     from ..core.validate import VerdictStore, build_panel_data
@@ -135,12 +135,15 @@ def command_report(args) -> int:
     for index, (crop_path, mask_path) in enumerate(pairs, start=1):
         progress(index, len(pairs), crop_path.name)
         try:
-            panels.append(build_panel_data(crop_path, mask_path, {}, project.params))
+            panels.append(build_panel_data(
+                crop_path, mask_path, {}, project.params,
+                key=colony_key(project, crop_path),
+            ))
         except Exception as error:
             print(f"  skipped {crop_path.name}: {error}", file=sys.stderr)
 
     output = Path(args.output or project.qc_dir / f"qc_report_{args.mode}.pdf")
-    context = build_context(project, args.mode, len(panels), store)
+    context = build_context(project, args.mode, [p.key for p in panels], store)
     write_report(output, panels, project.params, context, mode=args.mode, verdicts=store)
 
     if not args.quiet:
