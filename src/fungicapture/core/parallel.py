@@ -184,7 +184,9 @@ def limit_native_threads(active: bool = True) -> Iterator[None]:
         import cv2
 
         cv2_previous = cv2.getNumThreads()
-        cv2.setNumThreads(1)
+        # Explicitly disable OpenCV's pool. GCD builds on macOS report the
+        # CPU count for positive limits, even when setNumThreads(1) is used.
+        cv2.setNumThreads(0)
     except Exception:
         cv2_previous = None
     try:
