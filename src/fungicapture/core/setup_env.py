@@ -452,6 +452,7 @@ class EnvironmentReport:
     weights_path: Path | None = None
     problems: list[str] = field(default_factory=list)
     advice: list[str] = field(default_factory=list)
+    installation_supported: bool = True
 
     @property
     def can_run_sam3(self) -> bool:
@@ -471,6 +472,8 @@ class EnvironmentReport:
 
     def summary(self) -> str:
         """One line for the status bar."""
+        if not self.installation_supported:
+            return "Classical segmenter ready - SAM is not included in this desktop build"
         if not self.torch_installed:
             return "Segmentation model not installed - using the classical segmenter"
         if not self.ultralytics_installed:
@@ -481,6 +484,8 @@ class EnvironmentReport:
 
     def full_text(self) -> str:
         """The report shown in the setup window."""
+        if not self.installation_supported:
+            return self.summary() + "\n\n" + "\n".join(self.advice)
         lines: list[str] = []
 
         lines.append("GRAPHICS HARDWARE")
@@ -624,6 +629,19 @@ def check_environment(python_executable: str | None = None) -> EnvironmentReport
     the running application - the historical cause of "it just closes when I
     open segmentation setup".
     """
+    # A frozen executable is the application, not a Python interpreter.
+    # Running it with -I -c relaunches the GUI and blocks project opening.
+    # This desktop profile deliberately excludes the optional model runtime.
+    if getattr(sys, "frozen", False):
+        return EnvironmentReport(
+            gpu=GpuInfo(),
+            installation_supported=False,
+            advice=[
+                "Use a separate source environment for optional SAM inference. "
+                "Python packages cannot be installed into this desktop build."
+            ],
+        )
+
     import importlib.util
 
     from .segment import find_model
@@ -774,6 +792,8 @@ def install_segmentation(
     Returns ``(succeeded, message)``. Never raises: a failed install must leave
     the user with an explanation, not a stack trace.
     """
+    if getattr(sys, "frozen", False):
+        return False, check_environment().full_text()
     python_executable = python_executable or sys.executable
     gpu = GpuInfo() if force_cpu else detect_gpu()
     index_url, explanation = recommend_torch_index(gpu)

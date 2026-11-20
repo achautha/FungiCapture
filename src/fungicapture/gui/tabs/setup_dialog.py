@@ -114,6 +114,8 @@ class SegmentationSetupDialog(QDialog):
         report = check_environment()
         self.report.setPlainText(report.full_text())
         self.environment_changed.emit()
+        self.install_button.setEnabled(report.installation_supported)
+        self.force_cpu.setEnabled(report.installation_supported)
 
         if report.can_run_sam3:
             self.install_button.setText("Reinstall PyTorch + Ultralytics")

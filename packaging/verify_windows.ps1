@@ -67,8 +67,9 @@ try {
         do {
             Start-Sleep -Seconds 1
             $gui.Refresh()
-        } while (-not $gui.HasExited -and $gui.MainWindowHandle -eq 0 -and (Get-Date) -lt $deadline)
-        Assert (-not $gui.HasExited -and $gui.MainWindowHandle -ne 0) 'Installed GUI opens a native window'
+        } while (-not $gui.HasExited -and $gui.MainWindowTitle -notlike '*Research project with spaces*' -and (Get-Date) -lt $deadline)
+        Assert (-not $gui.HasExited -and $gui.MainWindowHandle -ne 0 -and $gui.MainWindowTitle -like '*Research project with spaces*' -and $gui.Responding) 'Installed GUI opens the research project and responds'
+        Assert (@(Get-Process -Name FungiCapture).Count -eq 1) 'Environment checking does not relaunch the application'
         Start-Sleep -Seconds 3
         Add-Type -AssemblyName System.Windows.Forms
         $screen = [Windows.Forms.SystemInformation]::VirtualScreen
@@ -81,11 +82,8 @@ try {
         Write-Host "GUI PID=$($gui.Id) title=$($gui.MainWindowTitle) responding=$($gui.Responding)"
         Write-Host "Close requested: $($gui.CloseMainWindow())"
         Assert ($gui.WaitForExit(20000)) 'Installed GUI closes normally'
-    } finally {
-        Copy-Item "$env:LOCALAPPDATA\fungicapture-startup.log" "$Evidence\startup-trace.log" -ErrorAction SilentlyContinue
-        if (-not $gui.HasExited) { $gui.Kill() }
-    }
-    throw 'Diagnostic build only; do not publish'
+        Assert ($gui.ExitCode -eq 0) 'Installed GUI exits successfully'
+    } finally { if (-not $gui.HasExited) { $gui.Kill() } }
     'Research data must survive reinstall and uninstall' | Set-Content "$project\KEEP.txt"
     Install-App
     Assert (Test-Path "$project\KEEP.txt") 'Reinstall preserves external research data'

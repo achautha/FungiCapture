@@ -289,7 +289,11 @@ class SegmentTab(StepTab):
             self.env_status.setStyleSheet("color:#1a6;")
         else:
             self.env_status.setStyleSheet("color:#a70;")
-            text += "  —  press Segmentation setup to fix"
+            if report.installation_supported:
+                text += "  —  press Segmentation setup to fix"
+            else:
+                self.backend.setCurrentText("classical")
+                self.backend.setEnabled(False)
         self.env_status.setText(text)
 
     def set_project(self, project: Project) -> None:

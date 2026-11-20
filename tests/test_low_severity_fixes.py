@@ -21,6 +21,25 @@ import pandas as pd  # noqa: E402
 from skimage.morphology import dilation, disk  # noqa: E402
 
 
+def test_frozen_desktop_reports_classical_and_refuses_model_install(monkeypatch, tmp_path):
+    import sys
+
+    from fungicapture.core.setup_env import check_environment, install_segmentation
+
+    # The packaged executable cannot interpret Python flags. No real Python
+    # or optional runtime should be needed to open a non-SAM desktop project.
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "FungiCapture.exe"))
+    report = check_environment()
+    assert not report.can_run_sam3
+    assert not report.installation_supported
+    assert "Classical segmenter ready" in report.summary()
+    assert "separate source environment" in report.full_text()
+    success, message = install_segmentation()
+    assert not success
+    assert "cannot be installed into this desktop build" in message
+
+
 # --- E: freeform well-id collision ------------------------------------------
 def test_freeform_well_ids_are_unique():
     from fungicapture.core.plate import freeform_well_id
