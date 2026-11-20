@@ -9,6 +9,10 @@ This guide covers installing it, running it through the window, running it from
 the command line, what every output file is, and how to recover when something
 goes wrong.
 
+**Before your first experiment:** read [researcher onboarding](RESEARCHER_ONBOARDING.md)
+for the pilot checklist, backend/fallback cautions and publication templates.
+See [licensing guidance](LICENSING.md) for SAM access and distribution obligations.
+
 ---
 
 ## Contents
@@ -66,8 +70,9 @@ The first run takes about 3–10 minutes and needs the internet. You will see a
 lot of text scroll past — that is normal. Leave it until the window opens.
 
 Platform notes:
-- **Windows**: if you see "Windows protected your PC", click *More info* →
-  *Run anyway*. This only means the file is unsigned, not that anything is wrong.
+- **Windows**: if you see "Windows protected your PC", verify the download source
+  and any published checksum, and follow your institution's security policy.
+  An unsigned or unrecognised application is not automatically safe.
 - **macOS**: the first time, right-click the file → *Open* → *Open*.
 - **Linux**: if double-click does nothing, open a terminal in the folder and run
   `bash "START FungiCapture (Linux).sh"`.
@@ -99,9 +104,10 @@ Then launch with `fungicapture gui`, or use the command line
 ([section 9](#9-command-line)).
 
 > **Licence note.** The SAM 3 backend depends on `ultralytics`, which is
-> AGPL-3.0 — that is why FungiCapture itself is AGPL-3.0. If you publish results
-> made with SAM 3, Meta's SAM License also asks you to acknowledge it in your
-> methods.
+> AGPL-licensed; FungiCapture is AGPL-3.0-or-later. Meta's separate SAM licence
+> requires acknowledgement of SAM use when publishing research involving it.
+> See [licensing guidance](LICENSING.md); neither installation nor a citation
+> alone establishes compliance with all terms.
 
 ### If it says "Python is not installed"
 
@@ -123,22 +129,30 @@ immediately with a **built-in classical segmenter** (colour contrast + a
 threshold). It is good for compact colonies with a clear edge, but weaker on the
 faint, fuzzy filamentous margin.
 
-For much better outlines, use the **SAM 3** model (an AI segmentation model that
-takes text prompts, so it can be told to find both the dense core and the faint
-margin):
+**SAM 3** is a text-promptable model that can target the dense core and faint
+margin. Compare it with classical segmentation on representative images; better
+outlines are not guaranteed for every experiment.
 
-1. Open the **2 Segment** tab.
-2. Press **Segmentation setup…**.
-3. The window shows your graphics hardware, what is installed, and what will
-   actually run. Press **Install segmentation model**. It downloads the version
-   matching your graphics driver (about 2 GB).
+In a source/launcher installation:
 
-The weights are **not bundled** — they are under Meta's gated SAM License. The
-app points you to Meta's page; you accept the licence and the file is cached on
-your machine.
+1. Read Meta's terms and request weights through the official model page.
+2. Open **2 Segment → Segmentation setup…**. The window checks your hardware
+   and installed libraries. **Install PyTorch + Ultralytics** installs backend
+   libraries, not the weights or acceptance of Meta's terms.
+3. Download an approved checkpoint yourself and configure its location as
+   described in [SAM onboarding](RESEARCHER_ONBOARDING.md#3-enable-sam-only-if-you-need-it).
+4. Check the actual backend and inspect pilot-run overlays before a full run.
 
-The Segment tab always shows, in one line, **which segmenter is really being
-used**, so it can never quietly fall back without telling you.
+Weights are **not bundled** under this project's distribution policy. The SAM
+licence permits redistribution subject to conditions; see [licensing guidance](LICENSING.md).
+The current frozen standalone executable cannot install optional libraries into
+itself using this installer. A tested separate SAM runtime is not yet provided.
+
+In `auto` mode, unavailable SAM triggers a warning and fallback to classical,
+without asking first. Inspect the Segment tab and run messages. For scripted
+research runs, use `--backend sam3` to require SAM or `--backend classical` to
+require classical segmentation; do not assume the selected and actual methods
+are the same in `auto` mode.
 
 ---
 

@@ -25,15 +25,24 @@ Outputs land in `dist/`.
 
 ## Two things that are deliberate
 
-**One-folder, not one-file.** PySide6 is LGPL-3.0, which obliges us to let a
-user replace the Qt libraries. A one-file bundle unpacks to a temporary
-directory and makes that impossible. This is a licence requirement, not a
-preference.
+**One-folder, not one-file.** This layout supports replacing PySide6/Qt shared
+libraries as part of meeting LGPL obligations. It does not by itself establish
+compliance; review the actual build and accompanying materials. One-file
+packaging is not categorically prohibited in every circumstance.
 
 **The SAM 3 weights are not bundled.** They are covered by Meta's restricted
-SAM License and are gated behind an access request, so the application sends
-the user to Meta's own page and caches the file locally. Never mirror the
-weights in a release. See `docs/LICENSING.md`.
+SAM License and access process. Leaving them out is project policy, not a
+blanket prohibition on redistribution in that licence. Direct users to Meta's
+official page rather than mirroring weights in a release.
+
+Before publishing, complete the [distribution checklist](../docs/LICENSING.md#before-a-maintainer-distributes-a-linux-or-windows-build)
+and include the [researcher onboarding](../docs/RESEARCHER_ONBOARDING.md), user
+guide and licensing guidance with the archive. These are release requirements,
+not a claim that the current scripts already copy every required file.
+
+The current frozen executable cannot install optional SAM dependencies into
+itself through `pip`; do not advertise the source-installation setup button as
+a working standalone SAM installer. See the onboarding guide for current limits.
 
 ## macOS signing
 

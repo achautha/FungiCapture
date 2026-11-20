@@ -17,8 +17,8 @@ The optional SAM 3 segmentation backend imports from **Ultralytics**, which is
 licensed **AGPL-3.0-only**. Under the conservative compliance interpretation,
 that requires FungiCapture's own source to be released under AGPL-3.0. Ultralytics
 and its deep-learning stack live in the optional `[model]` extra; the default
-installation (classical Otsu segmentation backend) does **not** install any
-AGPL-licensed code.
+installation (classical Otsu segmentation backend) does **not** install that
+optional stack. FungiCapture itself remains AGPL-3.0-or-later in either case.
 
 ---
 
@@ -62,17 +62,21 @@ AGPL-licensed code.
 | `ultralytics` (≥ 8.3.237) | AGPL-3.0-only (or paid Enterprise license) | Reason FungiCapture is AGPL-3.0 (§1) |
 | `torch` | BSD-3-Clause | — |
 | `torchvision` | BSD-3-Clause | — |
-| **SAM 3 model weights** | **Meta SAM License** (see [`LICENSES/SAM_LICENSE.txt`](LICENSES/SAM_LICENSE.txt)) | **Not redistributed with FungiCapture** |
+| **SAM 3 model weights** | **[Meta SAM License](https://huggingface.co/facebook/sam3/blob/main/LICENSE)** | **Excluded from application downloads by project policy** |
 
 ### The SAM 3 weights
 
 Colony segmentation can use the **Segment Anything Model 3 (SAM 3)**, released by
-Meta AI under the **SAM License** — a restricted research-and-community license,
-**not** an OSI-approved open-source license. FungiCapture does **not** redistribute
-the SAM 3 weights: the application directs each user to Meta's gated model page so
-they request access and accept the license themselves. The full SAM License text
-is included at [`LICENSES/SAM_LICENSE.txt`](LICENSES/SAM_LICENSE.txt) for
-reference.
+Meta AI under the **SAM License**, with use and redistribution conditions separate
+from FungiCapture's AGPL. The licence permits redistribution subject to its terms;
+excluding weights is this project's distribution policy, not a blanket legal ban.
+Researchers should obtain weights through Meta's official access process and
+acknowledge SAM use when publishing research involving it (§1.b.ii).
+
+The full agreement is on the official licence page linked above; this source
+tree does not include a local copy. If SAM materials are distributed, §1.b.i
+requires a copy of the agreement with them. See [licensing guidance](docs/LICENSING.md)
+for researcher and distributor checklists and the need to review the exact build.
 
 
 Model source and gated download: <https://github.com/facebookresearch/sam3> ·
@@ -87,5 +91,3 @@ Model source and gated download: <https://github.com/facebookresearch/sam3> ·
 non-GPL application).
 
 ---
-
-

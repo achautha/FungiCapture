@@ -2,6 +2,10 @@
   FungiCapture  —  how to start
 ===============================================================
 
+Before your first experiment, read:
+  docs/RESEARCHER_ONBOARDING.md  — pilot checks and publication templates
+  docs/LICENSING.md             — SAM terms and sharing responsibilities
+
 FIRST TIME on this computer? Run the SETUP file for your system
 once. It installs everything needed (including, on Linux, the
 system graphics libraries) and checks a window really opens:
@@ -71,8 +75,9 @@ well on all three systems.
   Double-click:     START FungiCapture (Windows).bat
 
   If Windows shows a blue box saying "Windows protected your PC":
-  click "More info", then "Run anyway". This appears because the
-  file is not signed, not because anything is wrong.
+  verify the download source and any published checksum first.
+  Follow your institution's security policy. An unsigned or
+  unrecognised application is not automatically safe.
 
 
 ---------------------------------------------------------------
@@ -135,18 +140,23 @@ FungiCapture works straight away using a built-in segmenter.
 It is fine for compact colonies but weaker on faint, fuzzy
 filamentous edges.
 
-For the much better SAM 3 model:
+For optional SAM 3 in a source/launcher installation:
 
   Open the "2 Segment" tab and press "Segmentation setup...".
 
-That window tells you what graphics hardware you have, what is
-installed, and what will actually run. Press "Install
-segmentation model" and it downloads the version that matches
-your graphics driver. About 2 GB.
+The "Install PyTorch + Ultralytics" button installs backend
+libraries, NOT model weights. Read Meta's terms and request
+checkpoint access at https://huggingface.co/facebook/sam3 .
+Follow docs/RESEARCHER_ONBOARDING.md for weight configuration,
+pilot checks, and the required acknowledgement in publications.
 
-The Segment tab always shows, in one line, which segmenter is
-really being used - so it can never quietly fall back without
-telling you.
+The current standalone executable cannot install optional
+libraries into itself with this button. Use the source setup
+unless your release documents a tested SAM runtime.
+
+In auto mode, unavailable SAM causes a warning and fallback to
+classical segmentation without asking first. Check the actual
+backend and inspect masks before using the results for research.
 
 
 ===============================================================

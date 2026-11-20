@@ -3,6 +3,10 @@
 High-throughput, image-based phenotyping of fungal colonies — from an agar
 plate photograph to GWAS-ready phenotype scores, in one desktop application.
 
+**New researchers:** start with [researcher onboarding](docs/RESEARCHER_ONBOARDING.md)
+for installation choices, a pilot-run checklist and publication templates.
+Read [licensing guidance](docs/LICENSING.md) before enabling SAM or sharing builds.
+
 ---
 
 ## What it does
@@ -86,10 +90,13 @@ for runtime-only/CLI profiles, tests, platform limits and dependency updates.
 
 ### The SAM 3 weights are not bundled
 
-They are covered by Meta's restricted SAM License and gated behind an access
-request. The application points you at Meta's page, you accept the licence, and
-the file is cached locally. **It works without them** using a classical
-segmenter — weaker on faint filamentous edges, but no download and no GPU.
+Leaving weights out is our distribution policy, not a blanket prohibition in
+Meta's licence. Obtain weights through [Meta's official access process](https://huggingface.co/facebook/sam3)
+and follow the [SAM setup and licensing guidance](docs/RESEARCHER_ONBOARDING.md#3-enable-sam-only-if-you-need-it).
+The setup button installs backend libraries, not weights; optional SAM setup in
+a frozen standalone executable is not currently supported by that installer.
+**It works without weights** using a classical segmenter. Validate its results
+on your images and record the backend actually used.
 
 ---
 
