@@ -1,0 +1,72 @@
+name: Non-SAM installation and tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  classical:
+    name: Classical / ${{ matrix.os }} / ${{ matrix.python || 'pinned Python' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+        python: ['']
+        include:
+          - os: ubuntu-24.04
+            python: '3.12.14'
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MPLBACKEND: Agg
+      FUNGICAPTURE_WORKERS: '2'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.9'
+      - name: Install Linux offscreen Qt libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
+      - name: Select the source-compatibility interpreter
+        if: matrix.python != ''
+        run: echo "UV_PYTHON=${{ matrix.python }}" >> "$GITHUB_ENV"
+      - name: Install the locked non-SAM environment
+        run: uv sync --locked --extra gui --group build
+      - name: Verify the installed profile
+        run: |
+          uv run --no-sync python --version
+          uv run --no-sync python - <<'PY'
+          import importlib.util
+          from importlib.metadata import distributions
+          names = {d.metadata['Name'].lower().replace('_', '-') for d in distributions()}
+          forbidden = {'torch', 'torchvision', 'ultralytics', 'opencv-python', 'opencv-contrib-python', 'opencv-contrib-python-headless'}
+          assert not names & forbidden, names & forbidden
+          assert 'opencv-python-headless' in names
+          assert all(importlib.util.find_spec(p) is None for p in ('torch', 'torchvision', 'ultralytics'))
+          import cv2, imagecodecs, rawpy
+          from PySide6.QtWidgets import QApplication
+          from fungicapture.gui.main_window import MainWindow
+          app = QApplication([])
+          window = MainWindow()
+          window.show()
+          app.processEvents()
+          assert window.isVisible()
+          window.close()
+          print('Non-SAM profile and offscreen Qt launch: OK')
+          PY
+      - name: Build source and wheel distributions using locked build tools
+        run: uv build --python .venv --no-build-isolation
+      - name: Install the built wheel without re-resolving dependencies
+        run: uv pip install --python .venv --no-deps --reinstall dist/*.whl
+      - name: Check the installed command and run classical regression workflows
+        run: |
+          uv run --no-sync fungicapture --help
+          uv run --no-sync python -m pytest -ra

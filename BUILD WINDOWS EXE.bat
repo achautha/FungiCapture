@@ -16,8 +16,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "LOG=build_log.txt"
-set "VENV=.venv-build"
-set "PYEXE=%VENV%\Scripts\python.exe"
+set "UV_PROJECT_ENVIRONMENT=.venv-build"
 
 echo.
 echo  ======================================================
@@ -25,44 +24,34 @@ echo    Building FungiCapture for Windows
 echo  ======================================================
 echo.
 
-REM ---------- find Python ----------
-echo  [1/6] Looking for Python...
-set "PY="
-where py >nul 2>&1 && set "PY=py -3"
-if not defined PY (
-    where python >nul 2>&1 && set "PY=python"
-)
-if not defined PY goto :nopython
-
-%PY% -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)" >nul 2>&1
-if errorlevel 1 goto :oldpython
-for /f "delims=" %%v in ('%PY% -c "import sys; print(sys.version.split()[0])"') do set "PYVER=%%v"
-echo        found Python !PYVER!
+REM ---------- find uv (it provisions the pinned Python) ----------
+echo  [1/6] Looking for uv...
+where uv >nul 2>&1
+if errorlevel 1 goto :nouv
 
 REM ---------- environment ----------
-echo  [2/6] Creating a build environment...
-if not exist "%PYEXE%" (
-    %PY% -m venv "%VENV%" >>"%LOG%" 2>&1
-    if errorlevel 1 goto :failed
-)
-"%PYEXE%" -m pip install --upgrade pip >>"%LOG%" 2>&1
-
-echo  [3/6] Installing FungiCapture and its parts...
-echo        (the slow step - several minutes)
-"%PYEXE%" -m pip install -e ".[gui]" >>"%LOG%" 2>&1
+echo  [2/6] Synchronizing the locked non-SAM build environment...
+uv sync --locked --extra gui --group build >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
-"%PYEXE%" -m pip install pyinstaller pip-licenses >>"%LOG%" 2>&1
+
+echo  [3/6] Checking the Python and dependency profile...
+uv run --no-sync python --version >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
+uv run --no-sync python -c "import importlib.util; assert all(importlib.util.find_spec(p) is None for p in ('torch', 'torchvision', 'ultralytics')), 'Build environment must not contain SAM dependencies'" >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
 
 echo  [4/6] Checking the program works before packaging it...
-"%PYEXE%" -c "import fungicapture, PySide6; print('ok')" >>"%LOG%" 2>&1
+set "QT_QPA_PLATFORM=offscreen"
+uv run --no-sync python -m pytest -ra >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
+set "QT_QPA_PLATFORM="
 
 echo  [5/6] Recording the licences of everything included...
-"%PYEXE%" -m piplicenses --format=markdown --with-urls --output-file THIRD_PARTY_LICENSES.md >>"%LOG%" 2>&1
+uv run --no-sync python -m piplicenses --format=markdown --with-urls --output-file THIRD_PARTY_LICENSES.md >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
 
 echo  [6/6] Building the .exe (this takes a while)...
-"%PYEXE%" -m PyInstaller packaging\fungicapture.spec --noconfirm >>"%LOG%" 2>&1
+uv run --no-sync python -m PyInstaller packaging\fungicapture.spec --noconfirm >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
 
 if not exist "dist\FungiCapture\FungiCapture.exe" goto :failed
@@ -121,25 +110,13 @@ echo.
 pause
 goto :end
 
-:nopython
+:nouv
 echo.
 echo  --------------------------------------------------------------
-echo   Python is not installed on this computer.
-echo.
-echo     1. Go to  https://www.python.org/downloads/
-echo     2. Download Python 3.11 or newer.
-echo     3. IMPORTANT: on the FIRST screen of the installer, tick
-echo        "Add Python to PATH"  before clicking Install.
-echo     4. Install it, then double-click this file again.
+echo   Install uv 0.12.9, then double-click this file again.
+echo   See docs\DEVELOPMENT.md for installation instructions.
+echo   uv provisions the Python version recorded in .python-version.
 echo  --------------------------------------------------------------
-echo.
-pause
-goto :end
-
-:oldpython
-echo.
-echo   The Python on this computer is too old - version 3.10 or newer
-echo   is needed. Get one from https://www.python.org/downloads/
 echo.
 pause
 goto :end

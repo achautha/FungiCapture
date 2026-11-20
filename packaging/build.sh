@@ -4,26 +4,21 @@
 # Run from the repository root:  bash packaging/build.sh
 set -euo pipefail
 
-echo "==> Checking Python"
-python3 --version
-
-echo "==> Installing build dependencies"
-python3 -m pip install --upgrade pip
-# CPU-only torch keeps the bundle near 400 MB instead of several GB. Users with
-# a CUDA GPU install the GPU build themselves afterwards.
-python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu || true
-python3 -m pip install -e ".[gui]"
-python3 -m pip install pyinstaller pip-licenses
+echo "==> Synchronizing the locked non-SAM build environment"
+export UV_PROJECT_ENVIRONMENT=.venv-build
+uv sync --locked --extra gui --group build
+uv run --no-sync python --version
+uv run --no-sync python -c 'import importlib.util; assert all(importlib.util.find_spec(p) is None for p in ("torch", "torchvision", "ultralytics")), "Build environment must not contain SAM dependencies"'
 
 echo "==> Recording third-party licences"
-pip-licenses --format=markdown --with-urls --output-file THIRD_PARTY_LICENSES.md
+uv run --no-sync python -m piplicenses --format=markdown --with-urls --output-file THIRD_PARTY_LICENSES.md
 echo "    wrote THIRD_PARTY_LICENSES.md"
 
 echo "==> Running tests"
-python3 -m pytest -q
+QT_QPA_PLATFORM=offscreen uv run --no-sync python -m pytest -ra
 
 echo "==> Building"
-pyinstaller packaging/fungicapture.spec --noconfirm
+uv run --no-sync python -m PyInstaller packaging/fungicapture.spec --noconfirm
 
 case "$(uname -s)" in
   Darwin)
@@ -47,5 +42,5 @@ case "$(uname -s)" in
 esac
 
 echo
-echo "Done. The SAM 3 weights are NOT bundled - the application downloads them"
-echo "on first run from Meta's gated page, as their licence requires."
+echo "Done. This is a non-SAM build: no model runtime or weights are bundled."
+echo "Optional SAM setup in frozen applications is not yet supported."

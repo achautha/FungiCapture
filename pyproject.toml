@@ -7,7 +7,7 @@ name = "fungicapture"
 version = "0.1.0.dev0"
 description = "High-throughput image-based phenotyping of fungal colonies, from agar plate photograph to GWAS-ready scores."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.14"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Kartik Deopujari" }]
 keywords = ["mycology", "phenotyping", "image-analysis", "GWAS", "colony", "melanization"]
@@ -15,9 +15,8 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
@@ -33,12 +32,11 @@ dependencies = [
     "matplotlib>=3.7",
     "opencv-python-headless>=4.8",
     "platformdirs>=3.0",
-    "tomli>=2.0; python_version<'3.11'",
     "tomli-w>=1.0",
     "Pillow>=10.0",
     # Lets tifffile decompress LZW and JPEG-in-TIFF. Scanner and microscope
     # software writes those constantly, and without this they fail to open.
-    "imagecodecs>=2023.1; python_version<\"3.14\"",
+    "imagecodecs>=2023.1",
     # Decodes camera RAW files (.nef, .cr2, .dng, ...) at full resolution.
     # Without it the generic decoders silently return the tiny embedded
     # preview thumbnail, so RAW plates crop to an unusable resolution.
@@ -55,15 +53,26 @@ gui = ["PySide6>=6.6"]
 #
 # WARNING: ultralytics depends on `opencv-python` (the DESKTOP build). Installed
 # next to our `opencv-python-headless` it shares the same `cv2` folder and its
-# bundled Qt plugins hijack PySide6's, crashing the GUI on start-up. The in-app
-# installer (core/setup_env.py::install_segmentation) removes it and
-# force-reinstalls headless. If you instead run `pip install .[gui,model]`
-# directly, do the same afterwards:
-#     pip uninstall -y opencv-python
-#     pip install --force-reinstall --no-deps opencv-python-headless
+# bundled Qt plugins can hijack PySide6's. The uv-managed environment excludes
+# the desktop distribution below; headless supplies the required cv2 API.
+# This exclusion does not apply to pip or the in-app installer. See
+# docs/DEVELOPMENT.md before installing the optional model profile.
 model = ["ultralytics>=8.3.237", "torch>=2.1", "torchvision>=0.16"]
 dev = ["pytest>=7.4", "pytest-cov>=4.1", "hypothesis>=6.90", "pip-licenses>=4.3", "pypdf>=5"]
 all = ["fungicapture[gui,model,dev]"]
+
+[dependency-groups]
+dev = ["fungicapture[dev]"]
+build = ["pyinstaller>=6.11", "setuptools>=68", "wheel"]
+
+[tool.uv]
+required-version = "==0.12.9"
+# Editable/source builds use isolated build environments as well. Keep their
+# tools aligned with the versions selected in uv.lock's build group.
+build-constraint-dependencies = ["setuptools==84.2.1", "wheel==0.48.0"]
+# Both distributions own cv2. Use only the headless implementation, including
+# when resolving the optional Ultralytics extra. This is a uv-only policy.
+exclude-dependencies = ["opencv-python"]
 
 [project.scripts]
 fungicapture = "fungicapture.cli.main:main"
@@ -92,4 +101,4 @@ markers = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py312"

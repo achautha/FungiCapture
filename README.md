@@ -71,6 +71,18 @@ card you own and any card works.
 | macOS | `FungiCapture-macos.dmg` | Drag to Applications, **right-click → Open** once |
 | Linux | `FungiCapture-linux-x86_64.tar.gz` | Unpack, run `FungiCapture` |
 
+### From source with locked dependencies
+
+Contributors and maintainers should use uv 0.12.9 and the pinned Python:
+
+```bash
+uv sync --locked --extra gui
+uv run --no-sync fungicapture-gui
+```
+
+This installs the non-SAM application and development tools, without torch,
+Ultralytics or model weights. See [reproducible setup and builds](docs/DEVELOPMENT.md)
+for runtime-only/CLI profiles, tests, platform limits and dependency updates.
 
 ### The SAM 3 weights are not bundled
 

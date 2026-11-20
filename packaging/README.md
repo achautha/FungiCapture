@@ -2,9 +2,16 @@
 
 ## Build for the current platform
 
+Install uv 0.12.9 first; see [the maintainer setup guide](../docs/DEVELOPMENT.md).
+Both native build scripts synchronize `.venv-build` from `uv.lock`, provision
+the Python pinned in `.python-version`, and run the test suite before freezing.
+They build the non-SAM profile without installing torch or model weights.
+
 ```bash
 bash packaging/build.sh
 ```
+
+On Windows, run `BUILD WINDOWS EXE.bat` instead.
 
 Outputs land in `dist/`.
 
@@ -47,6 +54,5 @@ xcrun stapler staple dist/FungiCapture-macos.dmg
 
 ## Size
 
-Roughly 400–600 MB unpacked, most of it PyTorch. If that is too much for your
-users, build without the `model` extra: the application still runs with the
-classical segmenter and drops to about 250 MB.
+Measure the final archive for each target; no fixed size is guaranteed. The
+current build scripts intentionally omit PyTorch and the `model` extra.
