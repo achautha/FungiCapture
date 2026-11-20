@@ -21,6 +21,17 @@ CLI_COMMANDS = {"new", "run", "report", "info", "gui", "--help", "-h", "--versio
 
 
 def main() -> int:
+    # Temporary native-startup diagnostics; removed before publishing.
+    if sys.platform == "win32" and getattr(sys, "frozen", False):
+        import faulthandler
+        import os
+        from pathlib import Path
+
+        trace = open(Path(os.environ["LOCALAPPDATA"]) / "fungicapture-startup.log", "a")
+        faulthandler.enable(file=trace)
+        faulthandler.dump_traceback_later(15, repeat=True, file=trace)
+        print(repr(sys.argv), file=trace, flush=True)
+
     # scikit-learn and NumPy can start worker processes. In a frozen bundle
     # each of those would otherwise re-launch the whole application instead of
     # starting a worker, which shows up as several copies of the window opening

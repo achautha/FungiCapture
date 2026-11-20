@@ -78,9 +78,14 @@ try {
             $graphics.CopyFromScreen($screen.Location, [Drawing.Point]::Empty, $screen.Size)
             $bitmap.Save("$Evidence\installed-gui.png")
         } finally { $graphics.Dispose(); $bitmap.Dispose() }
-        $null = $gui.CloseMainWindow()
+        Write-Host "GUI PID=$($gui.Id) title=$($gui.MainWindowTitle) responding=$($gui.Responding)"
+        Write-Host "Close requested: $($gui.CloseMainWindow())"
         Assert ($gui.WaitForExit(20000)) 'Installed GUI closes normally'
-    } finally { if (-not $gui.HasExited) { $gui.Kill() } }
+    } finally {
+        Copy-Item "$env:LOCALAPPDATA\fungicapture-startup.log" "$Evidence\startup-trace.log" -ErrorAction SilentlyContinue
+        if (-not $gui.HasExited) { $gui.Kill() }
+    }
+    throw 'Diagnostic build only; do not publish'
     'Research data must survive reinstall and uninstall' | Set-Content "$project\KEEP.txt"
     Install-App
     Assert (Test-Path "$project\KEEP.txt") 'Reinstall preserves external research data'
