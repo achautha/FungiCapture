@@ -19,8 +19,8 @@ Python 3.12 and 3.13; CI also checks 3.12.14 on Linux. Python 3.10/3.11 and
 compatibility has not been validated. The range does not promise every old
 patch release works; use patched interpreters.
 
-CI targets Ubuntu 24.04, Windows Server 2022 and macOS 14 with the pinned
-Python. Passing these source-install checks does not validate frozen packages,
+CI targets Ubuntu 24.04, Windows Server 2022 and macOS 15 (Apple Silicon) with
+the pinned Python. Passing these source-install checks does not validate frozen packages,
 all desktop OS versions or every CPU architecture.
 
 ## Set up and run without SAM
