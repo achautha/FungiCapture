@@ -1,0 +1,131 @@
+name: Windows installer release
+
+on:
+  push:
+    branches: [updated]
+    paths:
+      - '.github/workflows/windows-release.yml'
+      - 'packaging/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MPLBACKEND: Agg
+      FUNGICAPTURE_WORKERS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.9'
+      - name: Install locked build dependencies and run tests
+        shell: pwsh
+        run: |
+          uv sync --locked --extra gui --group build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          uv run --no-sync python -m pytest -ra
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build self-contained application
+        shell: pwsh
+        run: |
+          uv run --no-sync python -m PyInstaller packaging/fungicapture.spec --noconfirm --clean
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item LICENSE, NOTICE.md, packaging/WINDOWS.md dist/FungiCapture
+          Copy-Item docs/USER_GUIDE.md dist/FungiCapture/USER_GUIDE.md
+          uv run --no-sync python packaging/create_sample.py dist/FungiCapture/sample_dataset
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          uv export --locked --no-dev --extra gui --no-emit-project --output-file dist/FungiCapture/runtime-requirements.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $pythonLicense = uv run --no-sync python -c "import sys; from pathlib import Path; print(Path(sys.base_prefix) / 'LICENSE.txt')"
+          Copy-Item $pythonLicense dist/FungiCapture/PYTHON-LICENSE.txt
+          $version = uv run --no-sync python -c "import fungicapture; print(fungicapture.__version__)"
+          if ($version -ne '0.0.1') { throw "Unexpected release version: $version" }
+          @{ version=$version; commit=$env:GITHUB_SHA; python='3.13.15'; uv='0.12.9'; inno='7.1.1'; profile='non-SAM'; signed=$false } |
+            ConvertTo-Json | Set-Content dist/FungiCapture/BUILD-INFO.json
+      - name: Install pinned Inno Setup compiler
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe'
+          $file = "$env:RUNNER_TEMP\innosetup.exe"
+          Invoke-WebRequest $url -OutFile $file
+          if ((Get-FileHash $file -Algorithm SHA256).Hash -ne '8A5A6711C3766A6E5FB74F280BA0E3551E719CE94538D901FDBD1F8F9920B3F0') { throw 'Inno Setup checksum mismatch' }
+          $process = Start-Process $file -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
+          if ($process.ExitCode) { throw "Inno Setup installation failed: $($process.ExitCode)" }
+      - name: Compile installer and create matching source archive
+        shell: pwsh
+        run: |
+          & "$env:ProgramFiles\Inno Setup 7\ISCC.exe" /DAppVersion=0.0.1 packaging/windows.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git archive --format=zip --output=dist/installer/FungiCapture-0.0.1-source.zip HEAD
+          Copy-Item dist/FungiCapture/BUILD-INFO.json dist/installer/BUILD-INFO.json
+          Get-ChildItem dist/installer -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          } | Set-Content dist/installer/SHA256SUMS.txt
+      - name: Verify candidate installer on Windows
+        shell: pwsh
+        run: |
+          Remove-Item Env:QT_QPA_PLATFORM
+          ./packaging/verify_windows.ps1 -Installer dist/installer/FungiCapture-0.0.1-windows-x64-setup.exe -Evidence candidate-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: candidate-evidence
+          path: candidate-evidence
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: dist/installer
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: release-assets
+      - name: Publish release 0.0.1 without replacing existing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view 0.0.1 >/dev/null 2>&1; then
+            gh release create 0.0.1 --target "$GITHUB_SHA" --title 'FungiCapture 0.0.1' --prerelease --notes-file packaging/release-0.0.1.md
+          fi
+          gh release upload 0.0.1 release-assets/*
+
+  verify-download:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the public release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory downloaded | Out-Null
+          gh release download 0.0.1 --pattern '*windows-x64-setup.exe' --pattern SHA256SUMS.txt --dir downloaded
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Verify the downloaded installer without Python or uv on PATH
+        shell: pwsh
+        run: |
+          $entry = Get-Content downloaded/SHA256SUMS.txt | Where-Object { $_ -match 'FungiCapture-0.0.1-windows-x64-setup.exe$' }
+          if (-not $entry) { throw 'Published installer checksum is missing' }
+          $hash = ($entry -split '\s+')[0]
+          ./packaging/verify_windows.ps1 -Installer downloaded/FungiCapture-0.0.1-windows-x64-setup.exe -ExpectedHash $hash -Evidence released-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: released-installer-verification
+          path: released-evidence

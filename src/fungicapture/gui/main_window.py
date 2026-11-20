@@ -37,7 +37,9 @@ from .tabs.simple_tabs import FeaturesTab, PhenotypesTab, SegmentTab
 from .tabs.validate_tab import ValidateTab
 from .workers import run_in_background
 
-APP_VERSION = "0.1.0.dev0"
+from .. import __version__
+
+APP_VERSION = __version__
 
 
 class MainWindow(QMainWindow):

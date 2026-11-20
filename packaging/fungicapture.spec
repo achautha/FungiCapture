@@ -1,37 +1,42 @@
 # PyInstaller specification for FungiCapture.
 #
-# Built in ONE-FOLDER mode, not one-file. That is a licence requirement, not a
-# preference: PySide6 is LGPL-3.0, which obliges us to let a user replace the Qt
-# libraries. A one-file bundle unpacks to a temporary directory and makes that
-# impossible.
+# One-folder output keeps Qt libraries accessible for replacement. Review the
+# accompanying notices and source information before distributing the bundle.
 #
 # Build with:   pyinstaller packaging/fungicapture.spec --noconfirm
 #
-# The SAM 3 weights are deliberately NOT bundled. They are covered by Meta's
-# restricted SAM License and are gated behind an access request, so the
-# application downloads them on first run from Meta's own page. See
-# docs/LICENSING.md.
+# Non-SAM release: neither the optional model runtime nor weights are bundled.
 
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
-block_cipher = None
 project_root = Path(SPECPATH).parent
 
 hidden_imports = []
 # scikit-image and scikit-learn load parts of themselves lazily, so PyInstaller
 # cannot see those imports by static analysis and must be told.
 for package in ("skimage", "sklearn", "scipy"):
-    hidden_imports += collect_submodules(package)
+    hidden_imports += collect_submodules(package, filter=lambda name: ".tests" not in name)
 
 datas = []
 datas += collect_data_files("skimage", includes=["**/*.pyi"])
+# Preserve runtime metadata and its licence texts, including native codec
+# notices. No optional model packages are installed in the release environment.
+datas += copy_metadata("fungicapture", recursive=True)
+datas += copy_metadata("PySide6", recursive=True)
+for package in ("imagecodecs", "rawpy", "cv2"):
+    datas += collect_data_files(package, includes=["**/*LICENSE*", "**/*COPYING*", "licenses/**"])
 
 # Trim the bundle. These are large and never used by the application; leaving
 # them in roughly doubles the download for no benefit.
 excludes = [
+    "torch",
+    "torchvision",
+    "ultralytics",
+    "hypothesis",
+    "pypdf",
     "tkinter",
     "PyQt5",
     "PyQt6",
@@ -64,7 +69,6 @@ a = Analysis(
     excludes=excludes,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
 )
 
@@ -87,7 +91,7 @@ for _entry in a.binaries:
     _filtered_binaries.append(_entry)
 a.binaries = _filtered_binaries
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
@@ -109,10 +113,18 @@ exe = EXE(
     else None,
 )
 
+executables = [exe]
+if sys.platform == "win32":
+    # A real console entry point preserves stdout/stderr and exit codes for
+    # batch analysis; the desktop executable remains console-free.
+    executables.append(EXE(
+        pyz, a.scripts, [], exclude_binaries=True, name="FungiCapture-cli",
+        console=True, debug=False, strip=False, upx=False,
+    ))
+
 coll = COLLECT(
-    exe,
+    *executables,
     a.binaries,
-    a.zipfiles,
     a.datas,
     strip=False,
     upx=False,
