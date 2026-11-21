@@ -29,7 +29,7 @@ def _prepare_environment() -> None:
 def main(argv: list[str] | None = None) -> int:
     _prepare_environment()
 
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import Qt, QTimer
     from PySide6.QtWidgets import QApplication
 
     from .main_window import MainWindow
@@ -55,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
 
+    QTimer.singleShot(0, window.offer_sam_setup)
     return app.exec()
 
 

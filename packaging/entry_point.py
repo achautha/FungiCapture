@@ -27,14 +27,19 @@ def main() -> int:
     # at once. This call makes the child processes behave.
     multiprocessing.freeze_support()
 
+    if len(sys.argv) > 1 and sys.argv[1] == "--sam-worker":
+        from fungicapture.core.sam_setup import worker_main
+
+        return worker_main(sys.argv[2:])
+
     # One executable, two front ends. Double-clicking opens the window;
     # `FungiCapture run myproject` from a terminal runs the pipeline headless,
     # which is what a cluster job or a scripted re-analysis needs.
     if len(sys.argv) > 1 and sys.argv[1] in CLI_COMMANDS:
         if sys.argv[1] == "--version":
-            from fungicapture.gui.main_window import APP_VERSION
+            from fungicapture import __version__
 
-            print(f"FungiCapture {APP_VERSION}")
+            print(f"FungiCapture {__version__}")
             return 0
 
         from fungicapture.cli.main import main as run_cli

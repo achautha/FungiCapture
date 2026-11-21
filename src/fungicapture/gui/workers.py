@@ -23,7 +23,8 @@ from PySide6.QtCore import QObject, QThread, Signal
 class PipelineWorker(QObject):
     """Runs one callable that takes a ``progress`` keyword argument."""
 
-    progressed = Signal(int, int, str)
+    # Model copies exceed Qt's signed 32-bit int signal limit (3.45 GB).
+    progressed = Signal(object, object, str)
     finished = Signal(object)
     failed = Signal(str, str)
 

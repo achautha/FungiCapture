@@ -774,6 +774,8 @@ def install_segmentation(
     Returns ``(succeeded, message)``. Never raises: a failed install must leave
     the user with an explanation, not a stack trace.
     """
+    if getattr(sys, "frozen", False):
+        return False, "Install the SAM-enabled FungiCapture update. A packaged app cannot install Python packages."
     python_executable = python_executable or sys.executable
     gpu = GpuInfo() if force_cpu else detect_gpu()
     index_url, explanation = recommend_torch_index(gpu)
@@ -836,7 +838,7 @@ def install_segmentation(
     # ultralytics would pull a plain-PyPI torch and quietly undo the GPU build.
     progress("Installing Ultralytics (the SAM 3 interface)...")
     ok, detail = _run_pip(
-        python_executable, ["install", "ultralytics>=8.3.237"]
+        python_executable, ["install", "ultralytics>=8.3.237", "ftfy", "regex", "iopath", "timm"]
     )
     if not ok:
         return False, (

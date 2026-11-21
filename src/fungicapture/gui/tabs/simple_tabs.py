@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -201,11 +200,13 @@ class SegmentTab(StepTab):
         self.form.addRow("Run on:", self.device)
 
         self.backend = QComboBox()
-        self.backend.addItems(["auto", "sam3", "classical"])
+        self.backend.addItem("Classical", "classical")
+        self.backend.addItem("SAM 3 · on this computer", "sam3")
         self.backend.setToolTip(
-            "auto uses SAM 3 when the weights are present and falls back to the "
-            "classical segmenter otherwise, telling you which it used."
+            "Choose the method for this project. Adding a model never changes "
+            "this choice automatically. SAM must pass setup before it can run."
         )
+        self.backend.activated.connect(self._backend_changed)
         self.form.addRow("Backend:", self.backend)
 
         self.weights = QLabel("not found")
@@ -241,60 +242,91 @@ class SegmentTab(StepTab):
 
     def _refresh_weights(self) -> None:
         from ...core.segment import find_model
+        from ...core.sam_setup import model_ready
 
         path = find_model()
-        self.weights.setText(str(path) if path else "not found — will use classical")
+        self.weights.setText(
+            f"{path} · {'verified' if model_ready(path) else 'needs verification'}"
+            if path else "Not added · Classical needs no model"
+        )
+        self.weights.setWordWrap(True)
 
     def _install_weights(self) -> None:
-        from ...core.segment import SAM3_LICENCE_NOTE, SAM3_MODEL_PAGE, install_model
-
-        QMessageBox.information(
-            self, "SAM 3 weights",
-            f"{SAM3_LICENCE_NOTE}\n\nDownload page:\n{SAM3_MODEL_PAGE}\n\n"
-            "Once you have the file, choose it on the next screen.",
-        )
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select the SAM 3 weights file", "", "Model weights (*.pt)"
-        )
-        if not path:
-            return
-        try:
-            installed = install_model(path)
-        except Exception as error:
-            QMessageBox.critical(self, "Could not install the weights", str(error))
-            return
-        QMessageBox.information(self, "Installed", f"Weights cached at:\n{installed}")
-        self._refresh_weights()
+        self._open_setup()
 
     def _open_setup(self) -> None:
         from .setup_dialog import SegmentationSetupDialog
 
-        dialog = SegmentationSetupDialog(self)
+        dialog = SegmentationSetupDialog(self, project=self.project)
         dialog.exec()
+        if dialog.sam_selected:
+            self._save_backend("sam3")
         self.refresh_environment()
         self._refresh_weights()
 
-    def refresh_environment(self) -> None:
-        """Show in one line what segmentation will actually do."""
-        try:
-            from ...core.setup_env import check_environment
+    def _save_backend(self, backend):
+        from dataclasses import replace
 
-            report = check_environment()
-        except Exception as error:  # pragma: no cover
-            self.env_status.setText(f"Could not check: {error}")
+        if self.project is not None:
+            self.project.params = self.project.params.with_changes(
+                segmentation=replace(
+                    self.project.params.segmentation, backend=backend,
+                    device="cpu" if backend == "sam3" else self.project.params.segmentation.device,
+                )
+            )
+            self.project.save()
+        self.backend.setCurrentIndex(self.backend.findData(backend))
+        if backend == "sam3":
+            self.device.setCurrentText("cpu")
+
+    def _backend_changed(self):
+        selected = self.backend.currentData()
+        previous = self.project.params.segmentation.backend if self.project else "classical"
+        if selected == previous:
             return
-
-        text = report.summary()
-        if report.can_run_sam3:
-            self.env_status.setStyleSheet("color:#1a6;")
+        if selected == "sam3":
+            # Restore the previous choice until setup and confirmation finish.
+            self.backend.setCurrentIndex(self.backend.findData(previous))
+            self._open_setup()
         else:
-            self.env_status.setStyleSheet("color:#a70;")
-            text += "  —  press Segmentation setup to fix"
-        self.env_status.setText(text)
+            self._save_backend("classical")
+        self.refresh_environment()
+
+    def prepare_run(self) -> bool:
+        from ...core.sam_setup import model_ready
+
+        if self.backend.currentData() == "sam3" and not model_ready():
+            self._open_setup()
+            if not model_ready():
+                return False
+        output = self.folders["masks"].effective()
+        if output and any(Path(output).rglob("*_mask.png")):
+            return QMessageBox.question(
+                self, "Replace existing masks?",
+                "This run can replace existing masks and overlays. Regenerate features "
+                "and phenotypes afterwards. Continue?",
+            ) == QMessageBox.Yes
+        return True
+
+    def _run(self):
+        if self.project is not None and self.prepare_run():
+            super()._run()
+
+    def refresh_environment(self) -> None:
+        from ...core.sam_setup import model_ready, runtime_available
+
+        method = "SAM 3" if self.backend.currentData() == "sam3" else "Classical"
+        capability = (
+            "SAM verified on CPU" if model_ready() else
+            "SAM model needs setup" if runtime_available() else "SAM runtime not installed"
+        )
+        self.env_status.setText(f"Project method: {method}. {capability}.")
 
     def set_project(self, project: Project) -> None:
         super().set_project(project)
+        self.backend.setCurrentIndex(self.backend.findData(project.params.segmentation.backend))
         self.refresh_environment()
+        self._refresh_weights()
         self.device.setCurrentText(project.params.segmentation.device)
         groups = project.params.segmentation.prompt_groups
         self.prompts.setPlainText(
@@ -337,7 +369,7 @@ class SegmentTab(StepTab):
             self.project.save()
 
         return {
-            "backend": self.backend.currentText(),
+            "backend": self.backend.currentData(),
             "save_overlays": self.overlays.isChecked(),
         }
 

@@ -349,6 +349,9 @@ class CalibrationParams:
 class SegmentationParams:
     """SAM 3 prompt-based segmentation settings."""
 
+    backend: str = "classical"
+    """Explicit project method. Legacy projects without a choice stay Classical."""
+
     prompt_groups: dict[str, tuple[str, ...]] = field(
         default_factory=lambda: {
             "fine_filaments": (

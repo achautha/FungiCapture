@@ -428,7 +428,7 @@ def segment_crops(
     *,
     input_dir: str | Path | None = None,
     output_dir: str | Path | None = None,
-    backend: str = "auto",
+    backend: str | None = None,
     weights: str | Path | None = None,
     save_overlays: bool = True,
     progress: ProgressFn = _noop_progress,
@@ -475,7 +475,9 @@ def segment_crops(
         return result
 
     segmenter, messages = make_segmenter(
-        project.params.segmentation, backend=backend, weights=weights
+        project.params.segmentation,
+        backend=backend or project.params.segmentation.backend,
+        weights=weights,
     )
     result.warnings.extend(messages)
     result.data["backend"] = segmenter.name

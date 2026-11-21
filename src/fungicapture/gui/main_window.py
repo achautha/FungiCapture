@@ -9,6 +9,7 @@ the same files.
 
 from __future__ import annotations
 
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import __version__ as APP_VERSION
 from ..core.pipeline import (
     crop_plates,
     extract_features,
@@ -36,8 +38,6 @@ from .tabs.plates_tab import PlatesTab
 from .tabs.simple_tabs import FeaturesTab, PhenotypesTab, SegmentTab
 from .tabs.validate_tab import ValidateTab
 from .workers import run_in_background
-
-APP_VERSION = "0.1.0.dev0"
 
 
 class MainWindow(QMainWindow):
@@ -166,6 +166,27 @@ class MainWindow(QMainWindow):
         box.setDetailedText("\n\n".join(self._last_warnings))
         box.exec()
 
+    def offer_sam_setup(self) -> None:
+        from ..core.sam_setup import runtime_available
+
+        settings = QSettings()
+        if settings.value("sam/runtime_notice_v1", False, type=bool) or not runtime_available():
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("FungiCapture update")
+        box.setText("SAM support is now installed")
+        box.setInformativeText(
+            "Your projects and preferences are kept. Existing projects without an "
+            "explicit method use Classical.\n\nSAM is optional: add and verify the model, "
+            "then choose whether to use it for each project. No results have been changed."
+        )
+        setup = box.addButton("Set up SAM…", QMessageBox.AcceptRole)
+        box.addButton("Keep current method", QMessageBox.RejectRole)
+        box.exec()
+        settings.setValue("sam/runtime_notice_v1", True)
+        if box.clickedButton() == setup:
+            self.segment_tab._open_setup()
+
     # ---------------- project ----------------
 
     def open_project(self, project: Project) -> None:
@@ -244,6 +265,8 @@ class MainWindow(QMainWindow):
     def _run_all(self) -> None:
         if self.project is None or self._busy():
             return
+        if not self.segment_tab.prepare_run():
+            return
         if QMessageBox.question(
             self, "Run everything?",
             "This will crop the plates, segment every colony, measure the "
@@ -261,6 +284,7 @@ class MainWindow(QMainWindow):
             run_pipeline,
             step="everything",
             project=self.project,
+            **self.segment_tab.collect(),
             **self.plates_tab.pipeline_crop_options(),
         )
 
@@ -438,8 +462,8 @@ class MainWindow(QMainWindow):
             self, "Licensing and citation",
             "FungiCapture is released under AGPL-3.0. This is required, not "
             "chosen: it depends on Ultralytics, which is AGPL-3.0.\n\n"
-            "The SAM 3 weights are covered by Meta's own SAM License, a "
-            "restricted research licence. FungiCapture does not redistribute "
+            "The SAM 3 weights are covered by Meta's own SAM License. "
+            "FungiCapture does not redistribute "
             "them — you download them from Meta's gated page and accept that "
             "licence yourself.\n\n"
             "If you publish results made with SAM 3, the licence requires you "

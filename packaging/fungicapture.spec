@@ -9,25 +9,36 @@
 #
 # The SAM 3 weights are deliberately NOT bundled. They are covered by Meta's
 # restricted SAM License and are gated behind an access request, so the
-# application downloads them on first run from Meta's own page. See
+# user imports them separately after obtaining access from Meta. See
 # docs/LICENSING.md.
 
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
-block_cipher = None
 project_root = Path(SPECPATH).parent
 
 hidden_imports = []
 # scikit-image and scikit-learn load parts of themselves lazily, so PyInstaller
 # cannot see those imports by static analysis and must be told.
-for package in ("skimage", "sklearn", "scipy"):
+for package in ("skimage", "sklearn", "scipy", "ultralytics.models.sam", "timm", "iopath", "ftfy", "regex"):
     hidden_imports += collect_submodules(package)
 
 datas = []
 datas += collect_data_files("skimage", includes=["**/*.pyi"])
+# Configs, lazy SAM imports and optional-dependency version checks must work
+# without a Python installation. Torch/torchvision DLLs use PyInstaller's hooks.
+for package in ("ultralytics", "timm", "iopath", "ftfy", "regex"):
+    datas += collect_data_files(package, excludes=["**/*.pt", "**/*.pth", "**/*.safetensors"])
+for package in ("torch", "torchvision", "ultralytics", "ftfy", "regex", "iopath", "timm"):
+    # Core readiness fingerprints use importlib.metadata.version for all seven.
+    datas += copy_metadata(package)
+tokenizer = project_root / "src/fungicapture/resources/bpe_simple_vocab_16e6.txt.gz"
+if not tokenizer.is_file():
+    raise SystemExit(f"Missing SAM tokenizer: {tokenizer}")
+datas += [(str(tokenizer), "fungicapture/resources")]
+datas += [(str(project_root / "packaging/tokenizer-LICENSE.txt"), "fungicapture/resources")]
 
 # Trim the bundle. These are large and never used by the application; leaving
 # them in roughly doubles the download for no benefit.
@@ -48,6 +59,9 @@ excludes = [
     "imageio_ffmpeg",
     "imageio.plugins.ffmpeg",
     "av",
+    # Dependency installation belongs to the build, never to the frozen app.
+    "pip",
+    "ensurepip",
 ]
 
 a = Analysis(
@@ -60,11 +74,8 @@ a = Analysis(
     datas=datas,
     hiddenimports=hidden_imports,
     hookspath=[],
-    runtime_hooks=[],
+    runtime_hooks=[str(project_root / "packaging/runtime_sam.py")],
     excludes=excludes,
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
 )
 
@@ -87,7 +98,7 @@ for _entry in a.binaries:
     _filtered_binaries.append(_entry)
 a.binaries = _filtered_binaries
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
@@ -112,7 +123,6 @@ exe = EXE(
 coll = COLLECT(
     exe,
     a.binaries,
-    a.zipfiles,
     a.datas,
     strip=False,
     upx=False,

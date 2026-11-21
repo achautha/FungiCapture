@@ -20,5 +20,5 @@ as an implicit namespace package, which imports but reports ``__file__`` as
 None and can be packaged incorrectly. Being an explicit package avoids both.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.0rc1"
 __all__ = ["__version__"]

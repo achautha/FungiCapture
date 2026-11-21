@@ -35,6 +35,7 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - only on 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
+from .. import __version__
 from .params import AnalysisParams
 
 PROJECT_FILENAME = "fungicapture.toml"
@@ -554,7 +555,7 @@ class Project:
         n_outputs: int,
         n_errors: int = 0,
         notes: str = "",
-        app_version: str = "0.1.0.dev0",
+        app_version: str = __version__,
     ) -> RunRecord:
         """Record a completed pipeline step and save the project."""
         record = RunRecord(
@@ -573,7 +574,7 @@ class Project:
         self.save()
         return record
 
-    def provenance(self, app_version: str = "0.1.0.dev0") -> dict[str, Any]:
+    def provenance(self, app_version: str = __version__) -> dict[str, Any]:
         """The block stamped into every CSV and PDF."""
         return {
             "fungicapture_version": app_version,

@@ -16,6 +16,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from .. import __version__
+
 
 def _progress_printer(quiet: bool):
     """A progress callback that rewrites one line rather than scrolling."""
@@ -192,6 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
             "photograph to GWAS-ready scores."
         ),
     )
+    parser.add_argument("--version", action="version", version=f"FungiCapture {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     new = subparsers.add_parser("new", help="create a project")
@@ -217,7 +220,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--plate-map", dest="plate_map", help="plate map CSV")
     run.add_argument(
-        "--backend", default="auto", choices=["auto", "sam3", "classical"]
+        "--backend", choices=["auto", "sam3", "classical"],
+        help="override the saved project method (default: use project setting)",
     )
     run.add_argument("--no-auto-centre", action="store_true")
     run.add_argument("--skip-edge-wells", action="store_true")

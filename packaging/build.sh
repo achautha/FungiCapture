@@ -9,11 +9,18 @@ python3 --version
 
 echo "==> Installing build dependencies"
 python3 -m pip install --upgrade pip
-# CPU-only torch keeps the bundle near 400 MB instead of several GB. Users with
-# a CUDA GPU install the GPU build themselves afterwards.
-python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu || true
-python3 -m pip install -e ".[gui]"
-python3 -m pip install pyinstaller pip-licenses
+# Windows has a pinned CPU build and preflight in BUILD WINDOWS EXE.bat.
+# On macOS the normal PyPI wheels are CPU/MPS; Linux uses the CPU index.
+export YOLO_AUTOINSTALL=false
+if [[ "$(uname -s)" == Darwin ]]; then
+    python3 -m pip install torch torchvision
+else
+    python3 -m pip install --upgrade --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cpu
+fi
+python3 -m pip install -e ".[gui,model]"
+python3 -m pip uninstall -y opencv-python opencv-contrib-python opencv-contrib-python-headless opencv-python-headless
+python3 -m pip install --force-reinstall --no-deps 'opencv-python-headless>=4.8'
+python3 -m pip install 'pyinstaller>=6,<7' 'pyinstaller-hooks-contrib>=2025.0' pip-licenses 'pytest>=7.4'
 
 echo "==> Recording third-party licences"
 pip-licenses --format=markdown --with-urls --output-file THIRD_PARTY_LICENSES.md
@@ -47,5 +54,5 @@ case "$(uname -s)" in
 esac
 
 echo
-echo "Done. The SAM 3 weights are NOT bundled - the application downloads them"
-echo "on first run from Meta's gated page, as their licence requires."
+echo "Done. The SAM 3 weights are NOT bundled. Users must obtain authorised"
+echo "weights from Meta and import them separately. No in-app pip is bundled."

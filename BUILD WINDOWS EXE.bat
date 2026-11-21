@@ -18,6 +18,8 @@ cd /d "%~dp0"
 set "LOG=build_log.txt"
 set "VENV=.venv-build"
 set "PYEXE=%VENV%\Scripts\python.exe"
+REM Disable Ultralytics' optional dependency installer during analysis too.
+set "YOLO_AUTOINSTALL=false"
 
 echo.
 echo  ======================================================
@@ -34,7 +36,7 @@ if not defined PY (
 )
 if not defined PY goto :nopython
 
-%PY% -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)" >nul 2>&1
+%PY% -c "import sys, struct; sys.exit(0 if (3,10) <= sys.version_info < (3,14) and struct.calcsize('P') == 8 else 1)" >nul 2>&1
 if errorlevel 1 goto :oldpython
 for /f "delims=" %%v in ('%PY% -c "import sys; print(sys.version.split()[0])"') do set "PYVER=%%v"
 echo        found Python !PYVER!
@@ -46,23 +48,38 @@ if not exist "%PYEXE%" (
     if errorlevel 1 goto :failed
 )
 "%PYEXE%" -m pip install --upgrade pip >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
+"%PYEXE%" -c "import sys, struct; sys.exit(0 if (3,10) <= sys.version_info < (3,14) and struct.calcsize('P') == 8 else 1)" >>"%LOG%" 2>&1
+if errorlevel 1 goto :oldpython
 
 echo  [3/6] Installing FungiCapture and its parts...
 echo        (the slow step - several minutes)
-"%PYEXE%" -m pip install -e ".[gui]" >>"%LOG%" 2>&1
+REM Explicit CPU index and pins also replace a reused CUDA build environment.
+"%PYEXE%" -m pip install --upgrade --force-reinstall torch==2.7.1+cpu torchvision==0.22.1+cpu --index-url https://download.pytorch.org/whl/cpu >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
-"%PYEXE%" -m pip install pyinstaller pip-licenses >>"%LOG%" 2>&1
+"%PYEXE%" -m pip install -e ".[gui,model]" -c packaging\windows-constraints.txt >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
+REM Ultralytics declares desktop OpenCV. Remove ALL variants sharing cv2,
+REM then restore only headless (uninstall alone damages the shared cv2 tree).
+"%PYEXE%" -m pip uninstall -y opencv-python opencv-contrib-python opencv-contrib-python-headless opencv-python-headless >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
+"%PYEXE%" -m pip install --force-reinstall --no-deps "opencv-python-headless>=4.8" >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
+"%PYEXE%" -m pip install "pyinstaller>=6,<7" "pyinstaller-hooks-contrib>=2025.0" pip-licenses >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
 
 echo  [4/6] Checking the program works before packaging it...
 "%PYEXE%" -c "import fungicapture, PySide6; print('ok')" >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
+"%PYEXE%" packaging\check_sam_runtime.py >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
 
 echo  [5/6] Recording the licences of everything included...
 "%PYEXE%" -m piplicenses --format=markdown --with-urls --output-file THIRD_PARTY_LICENSES.md >>"%LOG%" 2>&1
+if errorlevel 1 goto :failed
 
 echo  [6/6] Building the .exe (this takes a while)...
-"%PYEXE%" -m PyInstaller packaging\fungicapture.spec --noconfirm >>"%LOG%" 2>&1
+"%PYEXE%" -m PyInstaller packaging\fungicapture.spec --noconfirm --clean >>"%LOG%" 2>&1
 if errorlevel 1 goto :failed
 
 if not exist "dist\FungiCapture\FungiCapture.exe" goto :failed
@@ -70,6 +87,8 @@ if not exist "dist\FungiCapture\FungiCapture.exe" goto :failed
 REM ---------- add the helper files ----------
 copy /y "docs\USER_GUIDE.md" "dist\FungiCapture\User Guide.md" >nul 2>&1
 copy /y "LICENSE" "dist\FungiCapture\LICENSE" >nul 2>&1
+copy /y "packaging\tokenizer-LICENSE.txt" "dist\FungiCapture\tokenizer-LICENSE.txt" >nul 2>&1
+copy /y "THIRD_PARTY_LICENSES.md" "dist\FungiCapture\THIRD_PARTY_LICENSES.md" >nul 2>&1
 xcopy /e /i /y "examples\sample_dataset" "dist\FungiCapture\sample_dataset" >nul 2>&1
 
 > "dist\FungiCapture\READ ME FIRST.txt" (
@@ -92,6 +111,9 @@ echo -----------
 echo.
 echo Everything the program needs is already inside this folder.
 echo You do NOT need to install Python or anything else.
+echo SAM runs on CPU. Its model weights are NOT included: obtain
+echo authorised sam3.pt weights from Meta and import them in setup.
+echo The tokenizer vocabulary is included; no runtime download is needed.
 echo.
 echo The folder is large because it carries its own copy of
 echo everything. Do not delete files from inside it.
@@ -138,8 +160,10 @@ goto :end
 
 :oldpython
 echo.
-echo   The Python on this computer is too old - version 3.10 or newer
-echo   is needed. Get one from https://www.python.org/downloads/
+echo   This CPU SAM build needs 64-bit Python 3.10 through 3.13.
+echo   Get one from https://www.python.org/downloads/
+echo   If .venv-build uses another version, remove that build environment
+echo   and run this file again with a supported Python.
 echo.
 pause
 goto :end

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fungicapture"
-version = "0.1.0.dev0"
+version = "0.1.0rc1"
 description = "High-throughput image-based phenotyping of fungal colonies, from agar plate photograph to GWAS-ready scores."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -61,7 +61,16 @@ gui = ["PySide6>=6.6"]
 # directly, do the same afterwards:
 #     pip uninstall -y opencv-python
 #     pip install --force-reinstall --no-deps opencv-python-headless
-model = ["ultralytics>=8.3.237", "torch>=2.1", "torchvision>=0.16"]
+model = [
+    "ultralytics>=8.3.237",
+    "torch>=2.1",
+    "torchvision>=0.16",
+    # SAM3's optional imports are not declared in Ultralytics' base metadata.
+    "ftfy>=6.3.1",
+    "regex>=2025.11.3",
+    "iopath>=0.1.10",
+    "timm>=1.0.22",
+]
 dev = ["pytest>=7.4", "pytest-cov>=4.1", "hypothesis>=6.90", "pip-licenses>=4.3"]
 all = ["fungicapture[gui,model,dev]"]
 
@@ -80,6 +89,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 fungicapture = ["resources/**/*"]
+
+[tool.setuptools.data-files]
+"share/licenses/fungicapture" = ["packaging/tokenizer-LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

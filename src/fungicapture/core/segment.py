@@ -5,7 +5,7 @@ Two backends
 ------------
 **SAM 3** - the real one. Text-promptable, so the colony core and the faint
 filamentous margin are described in words rather than tuned by thresholds.
-Needs the model weights, which are downloaded on first run.
+Needs model weights imported from the user's authorised download.
 
 **Classical** - a fallback using colour contrast and Otsu thresholding. Not as
 good on faint filamentous edges, but it needs no model, no GPU and no
@@ -34,12 +34,10 @@ from .params import SegmentationParams
 # the file. See docs/LICENSING.md.
 SAM3_MODEL_PAGE = "https://huggingface.co/facebook/sam3"
 SAM3_LICENCE_NOTE = (
-    "The SAM 3 weights are released by Meta under the SAM License, which is a "
-    "restricted research licence, not an open-source one. You must request "
-    "access on Meta's model page and accept the licence yourself. FungiCapture "
-    "does not redistribute the weights.\n\n"
-    "If you publish results made with SAM 3, the licence requires you to "
-    "acknowledge it in your methods."
+    "SAM 3 weights are covered by Meta's SAM License. Request access and "
+    "review and accept the terms on the official model page yourself. "
+    "FungiCapture does not bundle the weights. Only import a trusted file "
+    "from the official source: model checkpoints can execute code when loaded."
 )
 
 
@@ -312,7 +310,7 @@ class Sam3Segmenter:
     def __init__(self, params: SegmentationParams, weights: str | Path | None = None):
         self.params = params
         self.weights = Path(weights) if weights else find_model()
-        if self.weights is None:
+        if self.weights is None or not self.weights.is_file():
             raise ModelNotAvailable(
                 "SAM 3 weights not found.\n\n" + SAM3_LICENCE_NOTE
             )
@@ -324,6 +322,8 @@ class Sam3Segmenter:
     def _load(self):
         if self._predictor is not None:
             return self._predictor
+        os.environ["YOLO_AUTOINSTALL"] = "false"
+        os.environ["YOLO_OFFLINE"] = "true"
         try:
             from ultralytics.models.sam import SAM3SemanticPredictor
         except ImportError as error:
@@ -338,7 +338,11 @@ class Sam3Segmenter:
                 "AGPL-3.0. See docs/LICENSING.md."
             ) from error
 
-        self._predictor = SAM3SemanticPredictor(
+        bpe_path = Path(__file__).resolve().parents[1] / "resources" / "bpe_simple_vocab_16e6.txt.gz"
+        if not bpe_path.is_file():
+            raise ModelNotAvailable("SAM tokenizer is missing. Reinstall the SAM-enabled application.")
+        predictor = SAM3SemanticPredictor(
+            bpe_path=str(bpe_path),
             overrides=dict(
                 conf=self.params.confidence,
                 task="segment",
@@ -350,6 +354,10 @@ class Sam3Segmenter:
                 verbose=False,
             )
         )
+        # Construction alone does not load weights. Do not cache a predictor
+        # that failed to load, or report it as ready before setup_model succeeds.
+        predictor.setup_model()
+        self._predictor = predictor
         self._checksum = file_checksum(self.weights)[:16]
         return self._predictor
 
@@ -363,12 +371,10 @@ class Sam3Segmenter:
         group_masks: dict[str, np.ndarray] = {}
         try:
             for group, prompts in self.params.prompt_groups.items():
-                try:
-                    results = predictor(text=list(prompts))
-                    combined = _merge_result_masks(results)
-                except Exception as error:
-                    warnings.append(f"Prompt group '{group}' failed: {error}")
-                    combined = None
+                results = predictor(text=list(prompts))
+                if results is None or len(results) == 0:
+                    raise ModelNotAvailable(f"SAM returned no inference result for '{group}'.")
+                combined = _merge_result_masks(results)
                 if combined is None:
                     warnings.append(f"Prompt group '{group}' returned no mask.")
                     continue
