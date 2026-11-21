@@ -40,7 +40,10 @@ try {
     Assert ((Get-FileHash "$project\fungicapture.toml").Hash -eq $configBefore) 'Upgrade does not rewrite the project'
     Assert ((Get-ItemProperty $settings).pilot_upgrade_sentinel -eq 'preserve') 'Upgrade preserves preferences'
     Assert (Test-Path "$modelCache\KEEP.txt") 'Upgrade preserves external model cache'
-    $entry = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' | Where-Object DisplayName -eq FungiCapture
+    # Inno's default display name includes AppVersion. Identify this product
+    # by its persistent AppId, not presentation text that changes every release.
+    $entry = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' | Where-Object PSChildName -eq '{B4B45D16-18AB-4F51-88C5-83A50C765F6C}_is1'
+    $entry | Select-Object PSChildName, DisplayName, DisplayVersion | ConvertTo-Json | Set-Content "$Evidence\installed-app-entry.json"
     Assert (@($entry).Count -eq 1 -and $entry.DisplayVersion -eq '0.1.0rc1') 'One installed-app entry reports the new version'
     Assert (Test-Path "$install\_internal\python312.dll") 'Installer supplies Python without Python on PATH'
     Assert (Test-Path "$install\_internal\fungicapture\resources\bpe_simple_vocab_16e6.txt.gz") 'SAM tokenizer is installed'
