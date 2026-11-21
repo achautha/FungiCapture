@@ -27,6 +27,11 @@ for package in ("skimage", "sklearn", "scipy", "ultralytics.models.sam", "timm",
 
 datas = []
 datas += collect_data_files("skimage", includes=["**/*.pyi"])
+# Preserve dependency licence texts alongside the redistributable libraries.
+datas += copy_metadata("fungicapture", recursive=True)
+datas += copy_metadata("PySide6", recursive=True)
+for package in ("imagecodecs", "rawpy", "cv2"):
+    datas += collect_data_files(package, includes=["**/*LICENSE*", "**/*COPYING*", "licenses/**"])
 # Configs, lazy SAM imports and optional-dependency version checks must work
 # without a Python installation. Torch/torchvision DLLs use PyInstaller's hooks.
 for package in ("ultralytics", "timm", "iopath", "ftfy", "regex"):
@@ -120,8 +125,17 @@ exe = EXE(
     else None,
 )
 
+executables = [exe]
+if sys.platform == "win32":
+    # The desktop executable has no stdout/stderr on Windows. Keep a real
+    # console entry point for batch analysis and installed-app verification.
+    executables.append(EXE(
+        pyz, a.scripts, [], exclude_binaries=True, name="FungiCapture-cli",
+        console=True, debug=False, strip=False, upx=False,
+    ))
+
 coll = COLLECT(
-    exe,
+    *executables,
     a.binaries,
     a.datas,
     strip=False,
